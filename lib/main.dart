@@ -1,7 +1,13 @@
 import 'package:distances/homepage.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-void main() {
+void main() async{
+   WidgetsFlutterBinding.ensureInitialized();
+   await Permission.activityRecognition.request();
+    await Permission.location.request();
+    authorize();
+   // fetchStepData();
   runApp(const MyApp());
 }
 

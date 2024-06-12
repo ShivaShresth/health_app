@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:distances/differnt_color_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:health/health.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:distances/chart_app.dart';
 
@@ -8,6 +11,72 @@ class HomePage extends StatefulWidget {
 
   @override
   State<HomePage> createState() => _HomePageState();
+}
+
+List<HealthDataPoint> _healthDataList = [];
+
+final iosTypes = [
+  HealthDataType.WEIGHT,
+  HealthDataType.STEPS,
+  HealthDataType.HEIGHT,
+  HealthDataType.BODY_MASS_INDEX,
+  HealthDataType.ACTIVE_ENERGY_BURNED,
+  HealthDataType.WORKOUT,
+  HealthDataType.HEART_RATE,
+  HealthDataType.NUTRITION,
+  HealthDataType.DISTANCE_WALKING_RUNNING,
+  HealthDataType.WATER,
+];
+final androidTypes = [
+  HealthDataType.WEIGHT,
+  HealthDataType.STEPS,
+  HealthDataType.HEIGHT,
+  HealthDataType.BODY_MASS_INDEX,
+  HealthDataType.ACTIVE_ENERGY_BURNED,
+  HealthDataType.WORKOUT,
+  HealthDataType.HEART_RATE,
+  HealthDataType.NUTRITION,
+  HealthDataType.WATER,
+  HealthDataType.DISTANCE_DELTA,
+];
+// All types available depending on platform (iOS ot Android).
+List<HealthDataType> get types => (Platform.isAndroid)
+    ? androidTypes
+    : (Platform.isIOS)
+        ? iosTypes
+        : [];
+// // Or specify specific types
+
+// Set up corresponding permissions
+// READ And Write
+List<HealthDataAccess> get permissions =>
+    types.map((e) => HealthDataAccess.READ_WRITE).toList();
+
+/// Authorize, i.e. get permissionRs to access relevant health data.
+authorize() async {
+  // If we are trying to read Step Count, Workout, Sleep or other data that requires
+  // the ACTIVITY_RECOGNITION permission, we need to request the permission first.
+  // This requires a special request authorization call.
+  //
+  // The location permission is requested for Workouts using the Distance information.
+
+  // Check if we have health permissions
+  bool? hasPermissions =
+      await Health().hasPermissions(types, permissions: permissions);
+
+  // hasPermissions = false because the hasPermission cannot disclose if WRITE access exists.
+  // Hence, we have to request with WRITE as well.
+  hasPermissions = false;
+  bool authorized = false;
+  if (!hasPermissions) {
+    // requesting access to the data types before reading them
+    try {
+      authorized =
+          await Health().requestAuthorization(types, permissions: permissions);
+    } catch (error) {
+      debugPrint("Exception in authorize: $error");
+    }
+  }
 }
 
 class _HomePageState extends State<HomePage> {
@@ -37,8 +106,37 @@ class _HomePageState extends State<HomePage> {
     thusController = TextEditingController();
     friController = TextEditingController();
     satController = TextEditingController();
-
+    
     loadFromSharedPreferences();
+  }
+
+//// Fetch steps from the health plugin and show them in the app.
+  Future<void> fetchStepData() async {
+    int? steps;
+
+    // get steps for today (i.e., since midnight)
+    final now = DateTime.now();
+    final midnight = DateTime(now.year, now.month, now.day);
+
+    bool stepsPermission =
+        await Health().hasPermissions([HealthDataType.STEPS]) ?? false;
+
+    if (!stepsPermission) {
+      stepsPermission =
+          await Health().requestAuthorization([HealthDataType.STEPS]);
+    }
+    // bool stepsPermission = true;
+    if (stepsPermission) {
+      try {
+        steps = await Health().getTotalStepsInInterval(midnight, now);
+      } catch (error) {
+        debugPrint("Exception in getTotalStepsInInterval: $error");
+      }
+    } else {
+      debugPrint("Authorization not granted - error in authorization");
+      // setState(() => _state = AppState.DATA_NOT_FETCHED);
+    }
+    print('todays steps $steps');
   }
 
   Future<void> loadFromSharedPreferences() async {
@@ -211,13 +309,20 @@ class _HomePageState extends State<HomePage> {
                       onPressed: () async {
                         SharedPreferences prefs =
                             await SharedPreferences.getInstance();
-                        prefs.setInt("sunday", int.tryParse(sundController.text.trim()) ?? 0);
-                        prefs.setInt("monday", int.tryParse(monController.text.trim()) ?? 0);
-                        prefs.setInt("tuesday", int.tryParse(tuesController.text.trim()) ?? 0);
-                        prefs.setInt("wednesday", int.tryParse(wedController.text.trim()) ?? 0);
-                        prefs.setInt("thursday", int.tryParse(thusController.text.trim()) ?? 0);
-                        prefs.setInt("friday", int.tryParse(friController.text.trim()) ?? 0);
-                        prefs.setInt("saturday", int.tryParse(satController.text.trim()) ?? 0);
+                        prefs.setInt("sunday",
+                            int.tryParse(sundController.text.trim()) ?? 0);
+                        prefs.setInt("monday",
+                            int.tryParse(monController.text.trim()) ?? 0);
+                        prefs.setInt("tuesday",
+                            int.tryParse(tuesController.text.trim()) ?? 0);
+                        prefs.setInt("wednesday",
+                            int.tryParse(wedController.text.trim()) ?? 0);
+                        prefs.setInt("thursday",
+                            int.tryParse(thusController.text.trim()) ?? 0);
+                        prefs.setInt("friday",
+                            int.tryParse(friController.text.trim()) ?? 0);
+                        prefs.setInt("saturday",
+                            int.tryParse(satController.text.trim()) ?? 0);
 
                         Navigator.push(
                           context,
